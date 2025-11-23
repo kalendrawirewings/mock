@@ -4,6 +4,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import resumeRoutes from './routes/resumeRoutes.js';
+import interviewRoutes from './routes/interviewRoutes.js';
 
 dotenv.config();
 
@@ -32,11 +34,13 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/resumes', resumeRoutes);
+app.use('/api/interviews', interviewRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Backend API is running' });
