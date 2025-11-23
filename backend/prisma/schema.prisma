@@ -7,6 +7,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -79,7 +80,7 @@ model ResumeEducation {
   degree      String
   year        String
   gpa         String?
-  sortOrder   Int      @ (0) @map("sort_order")
+  sortOrder   Int      @default(0) @map("sort_order")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   // Relations

@@ -12,7 +12,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@prisma/client": "^7.0.0",
+    "@prisma/client": "^5.22.0",
     "@supabase/supabase-js": "^2.39.3",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -20,7 +20,7 @@
     "express": "^4.18.2",
     "express-session": "^1.18.0",
     "pg": "^8.11.3",
-    "prisma": "^7.0.0"
+    "prisma": "^5.22.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"

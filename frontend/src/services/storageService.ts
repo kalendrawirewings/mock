@@ -1,95 +1,107 @@
-import { ResumeData, InterviewSession, User } from '../types';
+import { ResumeData, InterviewSession } from '../types';
+import { resumeApi } from '../api/resumeApi';
+import { interviewApi } from '../api/interviewApi';
 
 class StorageService {
-  private readonly RESUME_KEY = 'interview_platform_resumes';
-  private readonly INTERVIEW_KEY = 'interview_platform_interviews';
-  private readonly USER_KEY = 'interview_platform_user';
-
-  // Save Resume
-  saveResume(resume: ResumeData): void {
-    const resumes = this.getResumes();
-
-    // Check if a resume with the same file name already exists
-    const existingFile = resumes.find((r) => r.fileName === resume.fileName);
-
-    if (existingFile) {
-      // If it exists, don't add it again
-      console.log(`Resume with name "${resume.fileName}" already exists.`);
-      return;
+  // Resume operations
+  async saveResume(resume: ResumeData): Promise<void> {
+    try {
+      await resumeApi.create(resume);
+    } catch (error) {
+      console.error('Error saving resume:', error);
+      throw error;
     }
-
-    // Otherwise, push the new resume to the list
-    resumes.push(resume);
-    localStorage.setItem(this.RESUME_KEY, JSON.stringify(resumes));
   }
 
-  // Get Resumes
-  getResumes(): ResumeData[] {
-    const data = localStorage.getItem(this.RESUME_KEY);
-    return data ? JSON.parse(data) : [];
+  async getResumes(): Promise<ResumeData[]> {
+    try {
+      const response = await resumeApi.getAll();
+      return response.resumes || [];
+    } catch (error) {
+      console.error('Error fetching resumes:', error);
+      return [];
+    }
   }
 
-  // Get a specific resume by its ID
-  getResume(id: string): ResumeData | null {
-    const resumes = this.getResumes();
-    return resumes.find((r) => r.id === id) || null;
+  async getResume(id: string): Promise<ResumeData | null> {
+    try {
+      const response = await resumeApi.getById(id);
+      return response.resume || null;
+    } catch (error) {
+      console.error('Error fetching resume:', error);
+      return null;
+    }
   }
 
-  // Delete a specific resume by its ID
-  deleteResume(id: string): void {
-    const resumes = this.getResumes().filter((r) => r.id !== id);
-    localStorage.setItem(this.RESUME_KEY, JSON.stringify(resumes));
+  async deleteResume(id: string): Promise<void> {
+    try {
+      await resumeApi.delete(id);
+    } catch (error) {
+      console.error('Error deleting resume:', error);
+      throw error;
+    }
   }
 
   // Interview operations
-  saveInterview(interview: InterviewSession): void {
-    const interviews = this.getInterviews();
-    const existingIndex = interviews.findIndex((i) => i.id === interview.id);
-
-    if (existingIndex >= 0) {
-      interviews[existingIndex] = interview;
-    } else {
-      interviews.push(interview);
+  async saveInterview(interview: InterviewSession): Promise<void> {
+    try {
+      if (interview.id) {
+        await interviewApi.update(interview.id, interview);
+      } else {
+        await interviewApi.create(interview);
+      }
+    } catch (error) {
+      console.error('Error saving interview:', error);
+      throw error;
     }
-
-    localStorage.setItem(this.INTERVIEW_KEY, JSON.stringify(interviews));
   }
 
-  getInterviews(): InterviewSession[] {
-    const data = localStorage.getItem(this.INTERVIEW_KEY);
-    return data ? JSON.parse(data) : [];
+  async getInterviews(): Promise<InterviewSession[]> {
+    try {
+      const response = await interviewApi.getAll();
+      return response.sessions || [];
+    } catch (error) {
+      console.error('Error fetching interviews:', error);
+      return [];
+    }
   }
 
-  getInterview(id: string): InterviewSession | null {
-    const interviews = this.getInterviews();
-    return interviews.find((i) => i.id === id) || null;
+  async getInterview(id: string): Promise<InterviewSession | null> {
+    try {
+      const response = await interviewApi.getById(id);
+      return response.session || null;
+    } catch (error) {
+      console.error('Error fetching interview:', error);
+      return null;
+    }
   }
 
-  deleteInterview(id: string): void {
-    const interviews = this.getInterviews().filter((i) => i.id !== id);
-    localStorage.setItem(this.INTERVIEW_KEY, JSON.stringify(interviews));
-  }
-
-  // User operations
-  saveUser(user: User): void {
-    localStorage.setItem(this.USER_KEY, JSON.stringify(user));
-  }
-
-  getUser(): User | null {
-    const data = localStorage.getItem(this.USER_KEY);
-    return data ? JSON.parse(data) : null;
+  async deleteInterview(id: string): Promise<void> {
+    try {
+      await interviewApi.delete(id);
+    } catch (error) {
+      console.error('Error deleting interview:', error);
+      throw error;
+    }
   }
 
   // Analytics
-  getInterviewStats(): {
+  async getInterviewStats(): Promise<{
     totalInterviews: number;
     averageScore: number;
     bestScore: number;
     recentTrend: number[];
-  } {
-    const interviews = this.getInterviews();
-
-    if (interviews.length === 0) {
+  }> {
+    try {
+      const response = await interviewApi.getStats();
+      return response.stats || {
+        totalInterviews: 0,
+        averageScore: 0,
+        bestScore: 0,
+        recentTrend: [],
+      };
+    } catch (error) {
+      console.error('Error fetching interview stats:', error);
       return {
         totalInterviews: 0,
         averageScore: 0,
@@ -97,25 +109,16 @@ class StorageService {
         recentTrend: [],
       };
     }
+  }
 
-    const scores = interviews.map((interview) => {
-      const skillScores = Object.values(interview.scores);
-      return (
-        skillScores.reduce((sum, score) => sum + score, 0) / skillScores.length
-      );
-    });
+  // User operations (kept for compatibility)
+  saveUser(user: any): void {
+    localStorage.setItem('interview_platform_user', JSON.stringify(user));
+  }
 
-    const averageScore =
-      scores.reduce((sum, score) => sum + score, 0) / scores.length;
-    const bestScore = Math.max(...scores);
-    const recentTrend = scores.slice(-10);
-
-    return {
-      totalInterviews: interviews.length,
-      averageScore: Math.round(averageScore),
-      bestScore: Math.round(bestScore),
-      recentTrend,
-    };
+  getUser(): any | null {
+    const data = localStorage.getItem('interview_platform_user');
+    return data ? JSON.parse(data) : null;
   }
 }
 

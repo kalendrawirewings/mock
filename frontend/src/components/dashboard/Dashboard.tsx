@@ -30,13 +30,23 @@ const Dashboard: React.FC = () => {
   const [resumes, setResumes] = useState<ResumeData[]>([]);
 
   useEffect(() => {
-    const interviewStats = storageService.getInterviewStats();
-    const interviews = storageService.getInterviews();
-    const resumeData = storageService.getResumes();
+    const fetchData = async () => {
+      try {
+        const [interviewStats, interviews, resumeData] = await Promise.all([
+          storageService.getInterviewStats(),
+          storageService.getInterviews(),
+          storageService.getResumes(),
+        ]);
 
-    setStats(interviewStats);
-    setRecentInterviews(interviews.slice(-3).reverse());
-    setResumes(resumeData);
+        setStats(interviewStats);
+        setRecentInterviews(interviews.slice(-3).reverse());
+        setResumes(resumeData);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      }
+    };
+
+    fetchData();
   }, []);
 
   const quickActions = [

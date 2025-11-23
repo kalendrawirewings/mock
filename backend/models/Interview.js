@@ -1,148 +1,109 @@
-import supabase from '../config/db.js';
+import prisma from '../config/prisma.js';
 
 class Interview {
   static async create(userId, sessionData) {
-    const { data: session, error } = await supabase
-      .from('interview_sessions')
-      .insert([
-        {
-          user_id: userId,
-          resume_id: sessionData.resumeId || null,
-          duration: sessionData.duration || 0,
-          status: sessionData.status || 'in-progress',
-          scores: sessionData.scores || {},
-          feedback: sessionData.feedback || {},
-          current_question_index: sessionData.currentQuestionIndex || 0,
-          total_questions: sessionData.totalQuestions || 25,
-          question_progress: sessionData.questionProgress || {},
-        },
-      ])
-      .select()
-      .single();
+    const session = await prisma.interviewSession.create({
+      data: {
+        userId,
+        resumeId: sessionData.resumeId || null,
+        duration: sessionData.duration || 0,
+        status: sessionData.status || 'in-progress',
+        scores: sessionData.scores || {},
+        feedback: sessionData.feedback || {},
+        currentQuestionIndex: sessionData.currentQuestionIndex || 0,
+        totalQuestions: sessionData.totalQuestions || 25,
+        questionProgress: sessionData.questionProgress || {},
+      },
+    });
 
-    if (error) throw error;
     return session;
   }
 
   static async update(id, sessionData) {
-    const updateData = {
-      duration: sessionData.duration,
-      status: sessionData.status,
-      scores: sessionData.scores,
-      feedback: sessionData.feedback,
-      current_question_index: sessionData.currentQuestionIndex,
-      question_progress: sessionData.questionProgress,
-      updated_at: new Date().toISOString(),
-    };
+    const session = await prisma.interviewSession.update({
+      where: { id },
+      data: {
+        duration: sessionData.duration,
+        status: sessionData.status,
+        scores: sessionData.scores,
+        feedback: sessionData.feedback,
+        currentQuestionIndex: sessionData.currentQuestionIndex,
+        questionProgress: sessionData.questionProgress,
+        updatedAt: new Date(),
+      },
+    });
 
-    const { data, error } = await supabase
-      .from('interview_sessions')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return session;
   }
 
   static async findByUserId(userId) {
-    const { data, error } = await supabase
-      .from('interview_sessions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('date', { ascending: false });
-
-    if (error) throw error;
-    return data;
+    return await prisma.interviewSession.findMany({
+      where: { userId },
+      orderBy: { date: 'desc' },
+    });
   }
 
   static async findById(id) {
-    const { data, error} = await supabase
-      .from('interview_sessions')
-      .select(`
-        *,
-        interview_questions (*),
-        conversation_entries (*),
-        interview_feedback_resources (*)
-      `)
-      .eq('id', id)
-      .single();
-
-    if (error) throw error;
-    return data;
+    return await prisma.interviewSession.findUnique({
+      where: { id },
+      include: {
+        questions: {
+          orderBy: { sortOrder: 'asc' },
+        },
+        conversationEntries: {
+          orderBy: { sortOrder: 'asc' },
+        },
+        resources: true,
+      },
+    });
   }
 
   static async delete(id) {
-    const { error } = await supabase
-      .from('interview_sessions')
-      .delete()
-      .eq('id', id);
-
-    if (error) throw error;
+    await prisma.interviewSession.delete({
+      where: { id },
+    });
     return true;
   }
 
   static async saveQuestion(sessionId, questionData) {
-    const { data, error } = await supabase
-      .from('interview_questions')
-      .insert([
-        {
-          session_id: sessionId,
-          category: questionData.category,
-          question: questionData.question,
-          expected_answer: questionData.expectedAnswer,
-          candidate_answer: questionData.candidateAnswer,
-          is_correct: questionData.isCorrect,
-          score: questionData.score,
-          feedback: questionData.feedback,
-          sort_order: questionData.sortOrder || 0,
-        },
-      ])
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return await prisma.interviewQuestion.create({
+      data: {
+        sessionId,
+        category: questionData.category,
+        question: questionData.question,
+        expectedAnswer: questionData.expectedAnswer,
+        candidateAnswer: questionData.candidateAnswer,
+        isCorrect: questionData.isCorrect,
+        score: questionData.score,
+        feedback: questionData.feedback,
+        sortOrder: questionData.sortOrder || 0,
+      },
+    });
   }
 
   static async saveConversationEntry(sessionId, entryData) {
-    const { data, error } = await supabase
-      .from('conversation_entries')
-      .insert([
-        {
-          session_id: sessionId,
-          speaker: entryData.speaker,
-          message: entryData.message,
-          audio_url: entryData.audioUrl,
-          question_id: entryData.questionId,
-          category: entryData.category,
-          sort_order: entryData.sortOrder || 0,
-        },
-      ])
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return await prisma.conversationEntry.create({
+      data: {
+        sessionId,
+        speaker: entryData.speaker,
+        message: entryData.message,
+        audioUrl: entryData.audioUrl,
+        questionId: entryData.questionId,
+        category: entryData.category,
+        sortOrder: entryData.sortOrder || 0,
+      },
+    });
   }
 
   static async saveResource(sessionId, resourceData) {
-    const { data, error } = await supabase
-      .from('interview_feedback_resources')
-      .insert([
-        {
-          session_id: sessionId,
-          title: resourceData.title,
-          url: resourceData.url,
-          type: resourceData.type,
-        },
-      ])
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return await prisma.interviewFeedbackResource.create({
+      data: {
+        sessionId,
+        title: resourceData.title,
+        url: resourceData.url,
+        type: resourceData.type,
+      },
+    });
   }
 
   static async getStats(userId) {

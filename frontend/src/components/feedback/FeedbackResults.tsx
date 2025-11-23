@@ -39,11 +39,13 @@ const FeedbackResults: React.FC = () => {
   const [categoryData, setCategoryData] = useState<any[]>([]);
 
   useEffect(() => {
-    if (sessionId) {
-      const interviewSession = storageService.getInterview(sessionId);
-      setSession(interviewSession);
+    const fetchSession = async () => {
+      if (sessionId) {
+        try {
+          const interviewSession = await storageService.getInterview(sessionId);
+          setSession(interviewSession);
 
-      if (interviewSession) {
+          if (interviewSession) {
         const data = [
           {
             skill: 'Communication',
@@ -92,8 +94,14 @@ const FeedbackResults: React.FC = () => {
           ];
           setCategoryData(catData);
         }
+          }
+        } catch (error) {
+          console.error('Error fetching interview session:', error);
+        }
       }
-    }
+    };
+
+    fetchSession();
   }, [sessionId]);
 
   if (!session) {

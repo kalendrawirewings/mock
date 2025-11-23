@@ -24,20 +24,35 @@ const InterviewHistory: React.FC = () => {
   });
 
   useEffect(() => {
-    const interviewSessions = storageService.getInterviews();
-    const interviewStats = storageService.getInterviewStats();
+    const fetchData = async () => {
+      try {
+        const [interviewSessions, interviewStats] = await Promise.all([
+          storageService.getInterviews(),
+          storageService.getInterviewStats(),
+        ]);
 
-    setSessions(interviewSessions.reverse()); // Most recent first
-    setStats(interviewStats);
+        setSessions(interviewSessions.reverse()); // Most recent first
+        setStats(interviewStats);
+      } catch (error) {
+        console.error('Error fetching interview history:', error);
+      }
+    };
+
+    fetchData();
   }, []);
 
-  const deleteSession = (id: string) => {
+  const deleteSession = async (id: string) => {
     if (
       window.confirm('Are you sure you want to delete this interview session?')
     ) {
-      storageService.deleteInterview(id);
-      setSessions(sessions.filter((s) => s.id !== id));
-      setStats(storageService.getInterviewStats());
+      try {
+        await storageService.deleteInterview(id);
+        setSessions(sessions.filter((s) => s.id !== id));
+        const updatedStats = await storageService.getInterviewStats();
+        setStats(updatedStats);
+      } catch (error) {
+        console.error('Error deleting session:', error);
+      }
     }
   };
 
