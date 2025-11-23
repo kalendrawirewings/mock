@@ -2,18 +2,20 @@ import supabase from '../config/db.js';
 import bcrypt from 'bcryptjs';
 
 class User {
-  static async create({ email, password, name }) {
+  static async create({ email, phone, password, name }) {
     const hashedPassword = await bcrypt.hash(password, 10);
+
+    const insertData = {
+      password: hashedPassword,
+      name
+    };
+
+    if (email) insertData.email = email;
+    if (phone) insertData.phone = phone;
 
     const { data, error } = await supabase
       .from('users')
-      .insert([
-        {
-          email,
-          password: hashedPassword,
-          name
-        }
-      ])
+      .insert([insertData])
       .select()
       .single();
 
@@ -32,10 +34,34 @@ class User {
     return data;
   }
 
+  static async findByPhone(phone) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('phone', phone)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  }
+
+  static async findByEmailOrPhone(email, phone) {
+    if (email) {
+      const user = await this.findByEmail(email);
+      if (user) return user;
+    }
+
+    if (phone) {
+      return await this.findByPhone(phone);
+    }
+
+    return null;
+  }
+
   static async findById(id) {
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, name, created_at, updated_at')
+      .select('id, email, phone, name, created_at, updated_at')
       .eq('id', id)
       .maybeSingle();
 
