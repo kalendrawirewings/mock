@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 import Layout from './components/common/Layout';
 import Dashboard from './components/dashboard/Dashboard';
 import ResumeUpload from './components/resume/ResumeUpload';
@@ -13,28 +14,36 @@ import TermsOfService from './policyPages/TermsOfServices';
 import PrivacyPolicy from './policyPages/PrivacyPolicy';
 import RefundPolicy from './policyPages/RefundPolicy';
 import CookiePolicy from './policyPages/CookiePolicy';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path='/' element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path='resume' element={<ResumeUpload />} />
-          <Route path='resume-builder' element={<Resume />} />
-          <Route path='interview' element={<InterviewSession />} />
-          <Route path='feedback' element={<FeedbackResults />} />
-          <Route path='history' element={<InterviewHistory />} />
-          <Route path='history' element={<InterviewHistory />} />
-          <Route path='help-us' element={<HelpUs />} />
-          <Route path='contact-us' element={<Contact />} />
-          <Route path='privacy-policy' element={<PrivacyPolicy />} />
-          <Route path='terms' element={<TermsOfService />} />
-          <Route path='refund-policy' element={<RefundPolicy />} />
-          <Route path='cookie-policy' element={<CookiePolicy />} />
-        </Route>
-      </Routes>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path='/login' element={<Login />} />
+          <Route path='/signup' element={<Signup />} />
+
+          <Route path='/' element={<Layout />}>
+            <Route index element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path='dashboard' element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path='resume' element={<ProtectedRoute><ResumeUpload /></ProtectedRoute>} />
+            <Route path='resume-builder' element={<ProtectedRoute><Resume /></ProtectedRoute>} />
+            <Route path='interview' element={<ProtectedRoute><InterviewSession /></ProtectedRoute>} />
+            <Route path='feedback' element={<ProtectedRoute><FeedbackResults /></ProtectedRoute>} />
+            <Route path='history' element={<ProtectedRoute><InterviewHistory /></ProtectedRoute>} />
+            <Route path='help-us' element={<ProtectedRoute><HelpUs /></ProtectedRoute>} />
+            <Route path='contact-us' element={<ProtectedRoute><Contact /></ProtectedRoute>} />
+            <Route path='privacy-policy' element={<PrivacyPolicy />} />
+            <Route path='terms' element={<TermsOfService />} />
+            <Route path='refund-policy' element={<RefundPolicy />} />
+            <Route path='cookie-policy' element={<CookiePolicy />} />
+          </Route>
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }
 
