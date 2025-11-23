@@ -1,0 +1,482 @@
+import React, { useState, useCallback, useEffect } from 'react';
+import { useDropzone } from 'react-dropzone';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Upload,
+  FileText,
+  CheckCircle,
+  AlertCircle,
+  Download,
+  Trash2,
+  Eye,
+  Loader2,
+  Sparkles,
+} from 'lucide-react';
+import { geminiService } from '../../services/geminiService';
+import { storageService } from '../../services/storageService';
+import { ResumeData } from '../../types';
+import { Link } from 'react-router-dom';
+
+const ResumeUpload: React.FC = () => {
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [resumes, setResumes] = useState<ResumeData[]>([]);
+  const [selectedResume, setSelectedResume] = useState<ResumeData | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Load resumes on component mount
+  useEffect(() => {
+    const loadedResumes = storageService.getResumes();
+    setResumes(loadedResumes);
+    if (loadedResumes.length > 0 && !selectedResume) {
+      setSelectedResume(loadedResumes[loadedResumes.length - 1]);
+    }
+  }, []);
+
+  const simulateProgress = (callback: () => void) => {
+    setUploadProgress(0);
+    setUploadStatus('Reading file...');
+    const progressInterval = setInterval(() => {
+      setUploadProgress((prev) => {
+        if (prev >= 30) {
+          clearInterval(progressInterval);
+          setUploadStatus('Analyzing with AI...');
+          const analysisInterval = setInterval(() => {
+            setUploadProgress((prev) => {
+              if (prev >= 90) {
+                clearInterval(analysisInterval);
+                setUploadStatus('Finalizing results...');
+                setTimeout(() => {
+                  setUploadProgress(100);
+                  setTimeout(callback, 500);
+                }, 1000);
+                return 90;
+              }
+              return prev + Math.random() * 10;
+            });
+          }, 300);
+          return 30;
+        }
+        return prev + Math.random() * 5;
+      });
+    }, 200);
+  };
+
+  const onDrop = useCallback(
+    async (acceptedFiles: File[]) => {
+      const file = acceptedFiles[0];
+      if (!file) return;
+
+      // Prevent multiple uploads (check if already uploading or processing)
+      if (isUploading || isProcessing) {
+        return;
+      }
+
+      setIsUploading(true);
+      setIsProcessing(true);
+      setUploadError(null);
+
+      try {
+        // Check if file already exists in storageService
+        const existingResumes = storageService.getResumes();
+        const existingFile = existingResumes.find(
+          (resume) => resume.fileName === file.name
+        );
+
+        if (existingFile) {
+          // Prevent adding the file again if it already exists
+          setUploadError(
+            `A resume with the name "${file.name}" already exists.`
+          );
+          setIsUploading(false);
+          setIsProcessing(false);
+          setUploadProgress(0);
+          setUploadStatus('');
+          return;
+        }
+
+        simulateProgress(async () => {
+          try {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+              const text = e.target?.result as string;
+
+              try {
+                // Simulate analysis (replace with your actual analysis logic)
+                const analysisResult = await geminiService.analyzeResume(
+                  text || 'Sample resume text for analysis'
+                );
+
+                const resumeData: ResumeData = {
+                  id: `${Date.now()}-${Math.random()
+                    .toString(36)
+                    .substr(2, 9)}`, // Unique ID
+                  fileName: file.name,
+                  uploadDate: new Date(),
+                  ...analysisResult,
+                };
+
+                // Save the resume to storage
+                storageService.saveResume(resumeData);
+
+                // Ensure state update with fresh data from storage
+                const updatedResumes = storageService.getResumes();
+                setResumes(updatedResumes);
+
+                // Select the newly uploaded resume
+                const newResume = updatedResumes.find(
+                  (r) => r.id === resumeData.id
+                );
+                if (newResume) {
+                  setSelectedResume(newResume);
+                }
+
+                // Reset progress states
+                setTimeout(() => {
+                  setIsUploading(false);
+                  setIsProcessing(false);
+                  setUploadProgress(0);
+                  setUploadStatus('');
+                }, 1000);
+              } catch (error) {
+                setUploadError('Failed to analyze resume. Please try again.');
+                setIsUploading(false);
+                setIsProcessing(false);
+                setUploadProgress(0);
+                setUploadStatus('');
+              }
+            };
+
+            reader.onerror = () => {
+              setUploadError('Failed to read file. Please try again.');
+              setIsUploading(false);
+              setIsProcessing(false);
+              setUploadProgress(0);
+              setUploadStatus('');
+            };
+
+            reader.readAsText(file);
+          } catch (error) {
+            setUploadError('Failed to process file. Please try again.');
+            setIsUploading(false);
+            setIsProcessing(false);
+            setUploadProgress(0);
+            setUploadStatus('');
+          }
+        });
+      } catch (error) {
+        setUploadError('Failed to process file. Please try again.');
+        setIsUploading(false);
+        setIsProcessing(false);
+        setUploadProgress(0);
+        setUploadStatus('');
+      }
+    },
+    [isUploading, isProcessing]
+  );
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'application/pdf': ['.pdf'],
+      'application/msword': ['.doc'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        ['.docx'],
+      'text/plain': ['.txt'],
+    },
+    maxFiles: 1,
+    disabled: isUploading || isProcessing,
+  });
+
+  const deleteResume = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this resume?')) {
+      storageService.deleteResume(id);
+      const updatedResumes = storageService.getResumes();
+      setResumes(updatedResumes);
+      if (selectedResume?.id === id) {
+        setSelectedResume(updatedResumes.length > 0 ? updatedResumes[0] : null);
+      }
+    }
+  };
+
+  return (
+    <div className='space-y-8'>
+      <div className='text-center'>
+        <div className='flex items-center justify-center mb-4'>
+          <Sparkles className='w-6 h-6 text-purple-400 mr-2' />
+          <h1 className='text-3xl font-bold gradient-text'>Resume Analysis</h1>
+          <Sparkles className='w-6 h-6 text-pink-400 ml-2' />
+        </div>
+        <p className='text-lg text-gray-300'>
+          Upload your resume for AI-powered analysis and improvement suggestions
+        </p>
+        <div className='flex items-center justify-center mt-4'>
+          <Link to='/resume-builder'>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className='flex items-center space-x-2 btn-tertiary px-8 py-3 font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed'
+            >
+              <span>{'Create Your Resume'}</span>
+            </motion.button>
+          </Link>
+        </div>
+      </div>
+
+      <div className='grid lg:grid-cols-3 gap-8'>
+        {/* Upload Section */}
+        <div className='lg:col-span-1'>
+          <motion.div
+            {...getRootProps()}
+            className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-300 ${
+              isDragActive
+                ? 'border-purple-500 bg-purple-500/10'
+                : isUploading || isProcessing
+                ? 'border-gray-600 bg-gray-800/50 cursor-not-allowed'
+                : 'border-gray-600 hover:border-purple-500/50 hover:bg-white/5'
+            }`}
+            whileHover={!isUploading && !isProcessing ? { scale: 1.02 } : {}}
+            whileTap={!isUploading && !isProcessing ? { scale: 0.98 } : {}}
+          >
+            <input {...getInputProps()} />
+            <div className='space-y-4'>
+              {isUploading ? (
+                <div className='space-y-4'>
+                  <Loader2 className='w-12 h-12 text-purple-500 mx-auto animate-spin' />
+                  <div className='space-y-2'>
+                    <div className='w-full bg-gray-700 rounded-full h-2'>
+                      <div
+                        className='h-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-300'
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                    <p className='text-sm text-purple-400 font-medium'>
+                      {uploadStatus}
+                    </p>
+                    <p className='text-xs text-gray-400'>
+                      {Math.round(uploadProgress)}% complete
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <Upload className='w-12 h-12 text-gray-500 mx-auto' />
+              )}
+              <div>
+                <h3 className='text-lg font-semibold text-white mb-2'>
+                  {isUploading ? 'Processing Resume...' : 'Upload Your Resume'}
+                </h3>
+                <p className='text-sm text-gray-400'>
+                  {isUploading
+                    ? 'Please wait while we analyze your resume'
+                    : 'Drop your resume here or click to browse'}
+                </p>
+                {!isUploading && (
+                  <p className='text-xs text-gray-500 mt-2'>
+                    Supports PDF, DOC, DOCX, TXT
+                  </p>
+                )}
+              </div>
+            </div>
+          </motion.div>
+
+          {uploadError && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className='mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center space-x-2 text-red-400'
+            >
+              <AlertCircle className='w-5 h-5' />
+              <span className='text-sm'>{uploadError}</span>
+            </motion.div>
+          )}
+
+          {/* Resume List */}
+          <div className='mt-8'>
+            <h3 className='text-lg font-semibold text-white mb-4'>
+              Your Resumes ({resumes.length})
+            </h3>
+            <div className='space-y-3'>
+              {resumes.length > 0 ? (
+                resumes.map((resume) => (
+                  <motion.div
+                    key={resume.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                      selectedResume?.id === resume.id
+                        ? 'border-purple-500/50 bg-purple-500/10'
+                        : 'border-white/10 hover:border-white/20 bg-white/5'
+                    }`}
+                    onClick={() => setSelectedResume(resume)}
+                  >
+                    <div className='flex items-center justify-between'>
+                      <div className='flex items-center space-x-3'>
+                        <FileText className='w-5 h-5 text-gray-400' />
+                        <div>
+                          <p className='text-sm font-medium text-white'>
+                            {resume.fileName}
+                          </p>
+                          <p className='text-xs text-gray-400'>
+                            Score: {resume.analysis.overallScore}/100 •{' '}
+                            {new Date(resume.uploadDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className='flex items-center space-x-2'>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteResume(resume.id);
+                          }}
+                          className='p-1 text-gray-400 hover:text-red-400 transition-colors'
+                        >
+                          <Trash2 className='w-4 h-4' />
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))
+              ) : (
+                <div className='text-center py-4 text-gray-500'>
+                  <FileText className='w-8 h-8 mx-auto mb-2 text-gray-600' />
+                  <p className='text-sm'>No resumes uploaded yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Analysis Results */}
+        <div className='lg:col-span-2'>
+          <AnimatePresence mode='wait'>
+            {selectedResume ? (
+              <motion.div
+                key={selectedResume.id}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className='space-y-6'
+              >
+                {/* Overall Score */}
+                <div className='card'>
+                  <div className='flex items-center justify-between mb-4'>
+                    <h3 className='text-xl font-semibold text-white'>
+                      Overall Score
+                    </h3>
+                    <div className='flex items-center space-x-2'>
+                      <div
+                        className={`w-4 h-4 rounded-full ${
+                          selectedResume.analysis.overallScore >= 80
+                            ? 'bg-green-500'
+                            : selectedResume.analysis.overallScore >= 60
+                            ? 'bg-yellow-500'
+                            : 'bg-red-500'
+                        }`}
+                      />
+                      <span className='text-2xl font-bold gradient-text'>
+                        {selectedResume.analysis.overallScore}/100
+                      </span>
+                    </div>
+                  </div>
+                  <div className='w-full bg-gray-700 rounded-full h-2'>
+                    <div
+                      className={`h-2 rounded-full transition-all duration-500 ${
+                        selectedResume.analysis.overallScore >= 80
+                          ? 'bg-green-500'
+                          : selectedResume.analysis.overallScore >= 60
+                          ? 'bg-yellow-500'
+                          : 'bg-red-500'
+                      }`}
+                      style={{
+                        width: `${selectedResume.analysis.overallScore}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Strengths */}
+                <div className='card'>
+                  <div className='flex items-center space-x-2 mb-4'>
+                    <CheckCircle className='w-5 h-5 text-green-400' />
+                    <h3 className='text-lg font-semibold text-white'>
+                      Strengths
+                    </h3>
+                  </div>
+                  <div className='space-y-2'>
+                    {selectedResume.analysis.strengths.map(
+                      (strength, index) => (
+                        <div key={index} className='flex items-start space-x-2'>
+                          <div className='w-1.5 h-1.5 bg-green-400 rounded-full mt-2 flex-shrink-0' />
+                          <p className='text-gray-300'>{strength}</p>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                {/* Areas for Improvement */}
+                <div className='card'>
+                  <div className='flex items-center space-x-2 mb-4'>
+                    <AlertCircle className='w-5 h-5 text-orange-400' />
+                    <h3 className='text-lg font-semibold text-white'>
+                      Areas for Improvement
+                    </h3>
+                  </div>
+                  <div className='space-y-2'>
+                    {selectedResume.analysis.weaknesses.map(
+                      (weakness, index) => (
+                        <div key={index} className='flex items-start space-x-2'>
+                          <div className='w-1.5 h-1.5 bg-orange-400 rounded-full mt-2 flex-shrink-0' />
+                          <p className='text-gray-300'>{weakness}</p>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                {/* Suggestions */}
+                <div className='card'>
+                  <div className='flex items-center space-x-2 mb-4'>
+                    <Eye className='w-5 h-5 text-purple-400' />
+                    <h3 className='text-lg font-semibold text-white'>
+                      Suggestions
+                    </h3>
+                  </div>
+                  <div className='space-y-3'>
+                    {selectedResume.analysis.suggestions.map(
+                      (suggestion, index) => (
+                        <div key={index} className='flex items-start space-x-2'>
+                          <div className='w-1.5 h-1.5 bg-purple-400 rounded-full mt-2 flex-shrink-0' />
+                          <p className='text-gray-300'>{suggestion}</p>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className='text-center py-16'
+              >
+                <FileText className='w-16 h-16 text-gray-600 mx-auto mb-4' />
+                <h3 className='text-xl font-semibold text-white mb-2'>
+                  No Resume Selected
+                </h3>
+                <p className='text-gray-400'>
+                  Upload a resume or select one from your list to see detailed
+                  analysis
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ResumeUpload;
