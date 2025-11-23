@@ -1,48 +1,32 @@
-import supabase from '../config/db.js';
+import prisma from '../config/prisma.js';
 import bcrypt from 'bcryptjs';
 
 class User {
   static async create({ email, phone, password, name }) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const insertData = {
-      password: hashedPassword,
-      name
-    };
+    const user = await prisma.user.create({
+      data: {
+        email: email || null,
+        phone: phone || null,
+        password: hashedPassword,
+        name,
+      },
+    });
 
-    if (email) insertData.email = email;
-    if (phone) insertData.phone = phone;
-
-    const { data, error } = await supabase
-      .from('users')
-      .insert([insertData])
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    return user;
   }
 
   static async findByEmail(email) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data;
+    return await prisma.user.findUnique({
+      where: { email },
+    });
   }
 
   static async findByPhone(phone) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('phone', phone)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data;
+    return await prisma.user.findUnique({
+      where: { phone },
+    });
   }
 
   static async findByEmailOrPhone(email, phone) {
@@ -59,14 +43,17 @@ class User {
   }
 
   static async findById(id) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, email, phone, name, created_at, updated_at')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data;
+    return await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        phone: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
   }
 
   static async comparePassword(plainPassword, hashedPassword) {
@@ -74,18 +61,13 @@ class User {
   }
 
   static async updateById(id, updates) {
-    const { data, error } = await supabase
-      .from('users')
-      .update({
+    return await prisma.user.update({
+      where: { id },
+      data: {
         ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+        updatedAt: new Date(),
+      },
+    });
   }
 }
 
